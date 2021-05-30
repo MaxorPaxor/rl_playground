@@ -9,7 +9,7 @@ BLUE = (0, 0, 255)
 BLACK = (0, 0, 0)
 
 BLOCK_SIZE = 20
-FPS = 15
+FPS = 22
 
 
 class SnakeGameAI:
@@ -19,23 +19,15 @@ class SnakeGameAI:
         self.h = h
         self.frame = np.zeros((self.h, self.w, 3))
         # init game state
+        self.reset()
+
+    def reset(self):
+        # reset
         self.direction = 'right'
         self.head = [int(self.w / 2), int(self.h / 2)]
         self.snake = [self.head.copy(),
                      [self.head[0] - BLOCK_SIZE, self.head[1]],
                      [self.head[0] - (2 * BLOCK_SIZE), self.head[1]]]
-        self.score = 0
-        self.food = None
-        self._place_food()
-        self.frame_iteration = 0
-
-    def reset(self):
-        # reset
-        self.direction = 'right'
-        self.head = [self.w / 2, self.h / 2]
-        self.snake = [self.head.copy(),
-                      self.head[0] - BLOCK_SIZE, self.head[1],
-                      self.head[0] - (2 * BLOCK_SIZE), self.head[1]]
         self.score = 0
         self.food = None
         self._place_food()
@@ -49,16 +41,12 @@ class SnakeGameAI:
         if self.food in self.snake:
             self._place_food()
 
-    def play_step(self):
-        self.frame = np.zeros((self.h, self.w, 3))
-        self.frame_iteration += 1
-
-        # 1. collect user input
+    def get_action_human(self):
         action = None
         time_start = time.time()
         dt = 0
 
-        while dt < 1/FPS:
+        while dt < 1 / FPS:
             move = self.direction
             k = cv2.waitKey(1)
             # Right = 83, up = 82, left = 81, down = 84, q = 113
@@ -75,16 +63,26 @@ class SnakeGameAI:
                 move = 'down'
                 other = 'up'
             if k == ord('q'):
-                cv2.destroyAllWindows()
-                return 0, True, self.score
+                action = 'quit'
 
             if k != -1 and move != self.direction and other != self.direction:
                 # clicked = True
                 action = move
-                print(action)
 
             time_end = time.time()
             dt = time_end - time_start
+
+        return action
+
+    def play_step(self, action=None, visuals=False):
+        self.frame = np.zeros((self.h, self.w, 3))
+        self.frame_iteration += 1
+
+        # 1. collect user input there is no policy action
+        if action is None:
+            action = self.get_action_human()
+            if action == 'quit':
+                return 0, True, self.score
 
         # 2. move
         self._move(action)  # update the head
@@ -106,20 +104,21 @@ class SnakeGameAI:
         else:
             self.snake.pop()
 
-        # 5. update ui and clock
-        # Draw food
-        self.frame = cv2.rectangle(self.frame,
-                                   (self.food[0], self.food[1]),
-                                   (self.food[0] + BLOCK_SIZE, self.food[1] + BLOCK_SIZE),
-                                   RED, thickness=-1)
-        # Draw snake
-        for link in self.snake:
+        # 5. update ui
+        if visuals:
+            # Draw food
             self.frame = cv2.rectangle(self.frame,
-                                       (int(link[0]), int(link[1])),
-                                       (int(link[0] + BLOCK_SIZE), int(link[1] + BLOCK_SIZE)),
-                                       WHITE, thickness=-1)
+                                       (self.food[0], self.food[1]),
+                                       (self.food[0] + BLOCK_SIZE, self.food[1] + BLOCK_SIZE),
+                                       RED, thickness=-1)
+            # Draw snake
+            for link in self.snake:
+                self.frame = cv2.rectangle(self.frame,
+                                           (int(link[0]), int(link[1])),
+                                           (int(link[0] + BLOCK_SIZE), int(link[1] + BLOCK_SIZE)),
+                                           WHITE, thickness=-1)
 
-        cv2.imshow('Snake', self.frame)
+            cv2.imshow('Snake', self.frame)
 
         # 6. return game over and score
         return reward, game_over, self.score
@@ -128,7 +127,7 @@ class SnakeGameAI:
         if pt is None:
             pt = self.head
         # hits boundary
-        if pt[0] > self.w or pt[0] < 0 - BLOCK_SIZE or pt[1] < 0 or pt[1] > self.h - BLOCK_SIZE:
+        if pt[0] > self.w - BLOCK_SIZE or pt[0] < 0 or pt[1] < 0 or pt[1] > self.h - BLOCK_SIZE:
             return True
         # hits itself
         if pt in self.snake[1:]:
@@ -165,6 +164,7 @@ class SnakeGameAI:
         if new_dir != self.direction and new_dir is not None:
             self.direction = new_dir
 
+        # Move the head
         if self.direction == 'right':
             self.head[0] += BLOCK_SIZE
         elif self.direction == 'left':
@@ -179,6 +179,7 @@ if __name__ == "__main__":
     game = SnakeGameAI()
     game_over = False
     while not game_over:
-        rew, game_over, score = game.play_step()
+        rew, game_over, score = game.play_step(visuals=True)
 
+    cv2.destroyAllWindows()
     print("Final score: {}".format(score))
