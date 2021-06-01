@@ -4,8 +4,9 @@ import time
 
 # rgb colors
 WHITE = (255, 255, 255)
-RED = (200, 0, 0)
-BLUE = (0, 0, 255)
+BLUE = (200, 0, 0)
+GREEN = (0, 255, 0)
+RED = (0, 0, 255)
 BLACK = (0, 0, 0)
 
 BLOCK_SIZE = 20
@@ -14,10 +15,11 @@ FPS = 22
 
 class SnakeGameAI:
 
-    def __init__(self, w=640, h=480):
+    def __init__(self, w=640, h=640, food_number=1):
         self.w = w
         self.h = h
         self.frame = np.zeros((self.h, self.w, 3))
+        self.food_number = food_number
         # init game state
         self.reset()
 
@@ -29,17 +31,19 @@ class SnakeGameAI:
                      [self.head[0] - BLOCK_SIZE, self.head[1]],
                      [self.head[0] - (2 * BLOCK_SIZE), self.head[1]]]
         self.score = 0
-        self.food = None
+        self.food = []
         self._place_food()
         self.frame_iteration = 0
 
     def _place_food(self):
-        x = np.random.randint(0, (self.w - BLOCK_SIZE) // BLOCK_SIZE) * BLOCK_SIZE
-        y = np.random.randint(0, (self.h - BLOCK_SIZE) // BLOCK_SIZE) * BLOCK_SIZE
-        self.food = [x, y]
+        while len(self.food) < self.food_number:
+            x = np.random.randint(0, (self.w - BLOCK_SIZE) // BLOCK_SIZE) * BLOCK_SIZE
+            y = np.random.randint(0, (self.h - BLOCK_SIZE) // BLOCK_SIZE) * BLOCK_SIZE
+            food = [x, y]
 
-        if self.food in self.snake:
-            self._place_food()
+            if self.food not in self.snake:
+                #self._place_food()
+                self.food.append(food)
 
     def get_action_human(self):
         action = None
@@ -74,7 +78,8 @@ class SnakeGameAI:
 
         return action
 
-    def play_step(self, action=None, visuals=False):
+    def play_step(self, action=None, visuals=False, food_number=1):
+        self.food_number = food_number
         self.frame = np.zeros((self.h, self.w, 3))
         self.frame_iteration += 1
 
@@ -97,28 +102,37 @@ class SnakeGameAI:
             return reward, game_over, self.score
 
         # 4. place new food or just move
-        if self.head == self.food:
+        if self.head in self.food:
             self.score += 1
             reward = 10
+            self.food.remove(self.head)
             self._place_food()
         else:
             self.snake.pop()
 
         # 5. update ui
-        if visuals:
-            # Draw food
-            self.frame = cv2.rectangle(self.frame,
-                                       (self.food[0], self.food[1]),
-                                       (self.food[0] + BLOCK_SIZE, self.food[1] + BLOCK_SIZE),
-                                       RED, thickness=-1)
-            # Draw snake
-            for link in self.snake:
-                self.frame = cv2.rectangle(self.frame,
-                                           (int(link[0]), int(link[1])),
-                                           (int(link[0] + BLOCK_SIZE), int(link[1] + BLOCK_SIZE)),
-                                           WHITE, thickness=-1)
 
+        # Draw food
+        for food in self.food:
+            self.frame = cv2.rectangle(self.frame,
+                                       (food[0], food[1]),
+                                       (food[0] + BLOCK_SIZE, food[1] + BLOCK_SIZE),
+                                       GREEN, thickness=-1)
+        # Draw snake
+        for i, link in enumerate(self.snake):
+            if i == 0:
+                color = BLUE
+            else:
+                color = WHITE
+            self.frame = cv2.rectangle(self.frame,
+                                       (int(link[0]), int(link[1])),
+                                       (int(link[0] + BLOCK_SIZE), int(link[1] + BLOCK_SIZE)),
+                                       color, thickness=-1)
+
+        if visuals:
             cv2.imshow('Snake', self.frame)
+            # cv2.waitKey(1)
+            # cv2.imshow('Snake', self.frame[::BLOCK_SIZE, ::BLOCK_SIZE, :])
 
         # 6. return game over and score
         return reward, game_over, self.score

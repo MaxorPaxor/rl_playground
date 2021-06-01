@@ -3,11 +3,12 @@ import random
 import numpy as np
 from collections import deque
 import snake_game
-from model import Linear_QNet, QTrainer
+from model import Linear_QNet, QTrainer, Conv_QNet
 from helper import plot
+import cv2
 
-MAX_MEMORY = 10_000
-BATCH_SIZE = 1000
+MAX_MEMORY = 1_000
+BATCH_SIZE = 100
 LR = 0.001
 
 
@@ -19,7 +20,8 @@ class Agent:
         self.epsilon = 0  # randomness
         self.gamma = 0.9  # discount rate
         self.memory = deque(maxlen=MAX_MEMORY)  # popleft()
-        self.model = Linear_QNet(11, 256, 4)
+        # self.model = Linear_QNet(11, 256, 4)
+        self.model = Conv_QNet()
         self.model = self.model.to(self.device)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
@@ -38,24 +40,26 @@ class Agent:
         dir_u = game.direction == 'up'
         dir_d = game.direction == 'down'
 
+        danger_straight = (dir_r and game.is_collision(point_r)) or \
+                          (dir_l and game.is_collision(point_l)) or \
+                          (dir_u and game.is_collision(point_u)) or \
+                          (dir_d and game.is_collision(point_d))
+
+        danger_right = (dir_u and game.is_collision(point_r)) or \
+                       (dir_d and game.is_collision(point_l)) or \
+                       (dir_l and game.is_collision(point_u)) or \
+                       (dir_r and game.is_collision(point_d))
+
+        danger_left = (dir_d and game.is_collision(point_r)) or \
+                      (dir_u and game.is_collision(point_l)) or \
+                      (dir_r and game.is_collision(point_u)) or \
+                      (dir_l and game.is_collision(point_d))
+
         state = [
-            # Danger straight
-            (dir_r and game.is_collision(point_r)) or
-            (dir_l and game.is_collision(point_l)) or
-            (dir_u and game.is_collision(point_u)) or
-            (dir_d and game.is_collision(point_d)),
-
-            # Danger right
-            (dir_u and game.is_collision(point_r)) or
-            (dir_d and game.is_collision(point_l)) or
-            (dir_l and game.is_collision(point_u)) or
-            (dir_r and game.is_collision(point_d)),
-
-            # Danger left
-            (dir_d and game.is_collision(point_r)) or
-            (dir_u and game.is_collision(point_l)) or
-            (dir_r and game.is_collision(point_u)) or
-            (dir_l and game.is_collision(point_d)),
+            # Dangers
+            danger_straight,
+            danger_right,
+            danger_left,
 
             # Move direction
             dir_l,
@@ -71,6 +75,12 @@ class Agent:
         ]
 
         return np.array(state, dtype=int)
+
+    def get_state_pixels(self, game):
+        frame = game.frame
+        BLOCK_SIZE = 20
+        frame_small = frame[::BLOCK_SIZE, ::BLOCK_SIZE, :]
+        return frame_small
 
     def remember(self, state, action, reward, next_state, done):
         self.memory.append((state, action, reward, next_state, done))  # popleft if MAX_MEMORY is reached
@@ -91,13 +101,19 @@ class Agent:
 
     def get_action(self, state):
         # random moves: tradeoff exploration / exploitation
-        self.epsilon = 80 - self.n_games
+        if self.n_games < 5000:
+            self.epsilon = 0.3
+        else:
+            self.epsilon = 0
         final_move = [0, 0, 0, 0]  # [Right, Up, Left, Down]
-        if random.randint(0, 100) < self.epsilon / 2:
+        if random.randint(0, 100) < self.epsilon:  # 30% random moves
             move = random.randint(0, 3)
             final_move[move] = 1
         else:
+            state = np.transpose(state, (2, 0, 1))  # conv
             state_tensor = torch.tensor(state, dtype=torch.float).to(self.device)
+            state_tensor = state_tensor.unsqueeze(0)  # conv
+
             prediction = self.model(state_tensor)
             move = torch.argmax(prediction).item()
             final_move[move] = 1
@@ -129,17 +145,24 @@ def train():
 
     while True:
         # get old state
-        state_old = agent.get_state(game)
+        # state_old = agent.get_state(game)
+        state_old = agent.get_state_pixels(game)
 
         # get move
         final_move = agent.get_action(state_old)
 
         # perform move and get new state
-        reward, done, score = game.play_step(agent.move_list2str(final_move))
-        state_new = agent.get_state(game)
+        reward, done, score = game.play_step(agent.move_list2str(final_move),
+                                             visuals=True,
+                                             food_number=10)
+        cv2.waitKey(1)
 
+        state_new = agent.get_state_pixels(game)
+
+        state_old = np.transpose(state_old, (2, 0, 1))  # conv
+        state_new = np.transpose(state_new, (2, 0, 1))  # conv
         # train short memory
-        agent.train_short_memory(state_old, final_move, reward, state_new, done)
+        # agent.train_short_memory(state_old, final_move, reward, state_new, done)
 
         # remember
         agent.remember(state_old, final_move, reward, state_new, done)

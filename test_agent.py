@@ -13,7 +13,7 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # model = model.Linear_QNet(11, 256, 4)
-    agent.model.load_state_dict(torch.load("./model/model_1.pth"))
+    agent.model.load_state_dict(torch.load("./model/model_simple.pth"))
     agent.model.eval()
     # model.to(device)  # Move our model to the gpu memory
 
@@ -33,4 +33,4 @@ if __name__ == "__main__":
         # perform move and get new state
         reward, game_over, score = game.play_step(action=agent.move_list2str(final_move), visuals=True)
         print(reward, game_over, score)
-        cv2.waitKey(20)
+        cv2.waitKey(10)
