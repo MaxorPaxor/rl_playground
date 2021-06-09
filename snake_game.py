@@ -9,16 +9,22 @@ GREEN = (0, 255, 0)
 RED = (0, 0, 255)
 BLACK = (0, 0, 0)
 
+# grey colors
+HEAD = (255)
+HEAD_2 = (200)
+BODY = (155)
+FOOD = (55)
+
 BLOCK_SIZE = 20
 FPS = 22
 
 
 class SnakeGameAI:
 
-    def __init__(self, w=640, h=640, food_number=1):
+    def __init__(self, w=320, h=320, food_number=1):
         self.w = w
         self.h = h
-        self.frame = np.zeros((self.h, self.w, 3))
+        self.frame = np.zeros((self.h, self.w, 3), dtype='uint8')
         self.food_number = food_number
         # init game state
         self.reset()
@@ -80,14 +86,17 @@ class SnakeGameAI:
 
     def play_step(self, action=None, visuals=False, food_number=1):
         self.food_number = food_number
-        self.frame = np.zeros((self.h, self.w, 3))
+        self.frame = np.zeros((self.h, self.w, 3), dtype='uint8')
         self.frame_iteration += 1
 
         # 1. collect user input there is no policy action
         if action is None:
+            human = True
             action = self.get_action_human()
             if action == 'quit':
                 return 0, True, self.score
+        else:
+            human = False
 
         # 2. move
         self._move(action)  # update the head
@@ -120,10 +129,9 @@ class SnakeGameAI:
                                        GREEN, thickness=-1)
         # Draw snake
         for i, link in enumerate(self.snake):
-            if i == 0:
-                color = BLUE
-            else:
-                color = WHITE
+            color = tuple(c-30*i for c in WHITE)
+            if color[0] < 50:
+                color = (50, 50, 50)
             self.frame = cv2.rectangle(self.frame,
                                        (int(link[0]), int(link[1])),
                                        (int(link[0] + BLOCK_SIZE), int(link[1] + BLOCK_SIZE)),
@@ -131,8 +139,10 @@ class SnakeGameAI:
 
         if visuals:
             cv2.imshow('Snake', self.frame)
-            # cv2.waitKey(1)
-            # cv2.imshow('Snake', self.frame[::BLOCK_SIZE, ::BLOCK_SIZE, :])
+            # small_frame = self.frame[::BLOCK_SIZE, ::BLOCK_SIZE]
+            # cv2.imshow('Snake', small_frame)
+            if not human:
+                cv2.waitKey(1)
 
         # 6. return game over and score
         return reward, game_over, self.score

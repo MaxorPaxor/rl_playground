@@ -30,20 +30,23 @@ class Conv_QNet(nn.Module):
     def __init__(self):
         super().__init__()
         # image size 640x640x3 reduced to 32x32x3
-        # kernel
-        self.conv1 = nn.Conv2d(3, 6, 5)  # 14*14*6
-        self.conv2 = nn.Conv2d(6, 16, 5)  # 5*5*16
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
-        self.fc2 = nn.Linear(120, 4)
-        # self.fc3 = nn.Linear(84, 4)
+        # image size 320x320x3 reduced to 16x16x3 or x1 for grey
+
+        self.conv1 = nn.Conv2d(3, 10, 5)  # 12*12*10
+        self.conv2 = nn.Conv2d(10, 20, 5)  # 8*8*20
+        self.conv3 = nn.Conv2d(20, 30, 5)  # 4*4*30 -> 2*2*30
+        self.fc1 = nn.Linear(2 * 2 * 30, 128)
+        self.fc2 = nn.Linear(128, 4)
+        # self.fc3 = nn.Linear(64, 4)
 
     def forward(self, x):
-        x = F.max_pool2d(F.relu(self.conv1(x)), 2)
-        x = F.max_pool2d(F.relu(self.conv2(x)), 2)
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        # x = F.relu(self.conv3(x))
+        x = F.max_pool2d(F.relu(self.conv3(x)), 2)
         x = torch.flatten(x, 1)  # flatten all dimensions except the batch dimension
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
-        # x = self.fc3(x)
         return x
 
     def save(self, file_name='model_conv.pth'):
@@ -61,8 +64,9 @@ def compare_models(model_1, model_2):
             pass
         else:
             print('Models mismatch')
-            break
+            return
     print('Models match perfectly! :)')
+
 
 class QTrainer:
     def __init__(self, model, lr, gamma):
@@ -96,17 +100,17 @@ class QTrainer:
         # (n, 4) where the second dimension is the Q value for that action
         # pred = Q(si, ai) = [Q_right, Q_up, Q_left, Q_down]_i
 
-        if self.batch_num % 100 == 0:
-            compare_models(self.target_model, self.model)
+        if self.batch_num % 50 == 0:
+            # compare_models(self.target_model, self.model)
             print("Updated model")
             self.target_model = copy.deepcopy(self.model)
-            compare_models(self.target_model, self.model)
+            # compare_models(self.target_model, self.model)
 
         # go through all steps
         for idx in range(len(done)):
             Q_new = reward[idx]
             if not done[idx]:
-                Q_new = reward[idx] + self.gamma * torch.max(self.model(next_state[idx].unsqueeze(0)))
+                Q_new = reward[idx] + self.gamma * torch.max(self.target_model(next_state[idx].unsqueeze(0)))
                 # yi = r(s,a) + gamma * max_ai' ( Q(si', ai') )
 
             target[idx][torch.argmax(action[idx]).item()] = Q_new
@@ -114,7 +118,6 @@ class QTrainer:
             # torch.argmax(action[idx]).item() = 2
             # target[idx] = [Q_right, Q_up, Q_left, Q_down]_idx
             # target[idx][2] = Q_new = [Q_right, Q_up, _Q_new_, Q_down]_idx
-            # maybe be better choice: [0, 0, _Q_new_, 0]_idx
 
         self.optimizer.zero_grad()
         loss = self.criterion(target, pred)

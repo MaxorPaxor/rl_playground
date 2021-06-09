@@ -5,10 +5,11 @@ from collections import deque
 import snake_game
 from model import Linear_QNet, QTrainer, Conv_QNet
 from helper import plot
-import cv2
 
-MAX_MEMORY = 1_000
-BATCH_SIZE = 100
+from sys import getsizeof
+
+MAX_MEMORY = 20_000
+BATCH_SIZE = 500
 LR = 0.001
 
 
@@ -19,9 +20,13 @@ class Agent:
         self.n_games = 0
         self.epsilon = 0  # randomness
         self.gamma = 0.9  # discount rate
-        self.memory = deque(maxlen=MAX_MEMORY)  # popleft()
+        self.memory = deque(maxlen=int(MAX_MEMORY))  # popleft()
+        # self.memory_2 = deque(maxlen=int(MAX_MEMORY/4))
+        # self.memory_3 = deque(maxlen=int(MAX_MEMORY/4))
+        # self.memory_4 = deque(maxlen=int(MAX_MEMORY/4))
         # self.model = Linear_QNet(11, 256, 4)
         self.model = Conv_QNet()
+        # self.model.load_state_dict(torch.load("./model/model_conv.pth", map_location=torch.device('cpu')))
         self.model = self.model.to(self.device)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
@@ -101,8 +106,10 @@ class Agent:
 
     def get_action(self, state):
         # random moves: tradeoff exploration / exploitation
-        if self.n_games < 5000:
-            self.epsilon = 0.3
+        if self.n_games < 3000:
+            self.epsilon = 10
+        elif self.n_games < 10000:
+            self.epsilon = 5
         else:
             self.epsilon = 0
         final_move = [0, 0, 0, 0]  # [Right, Up, Left, Down]
@@ -141,12 +148,13 @@ def train():
     total_score = 0
     record = 0
     agent = Agent()
-    game = snake_game.SnakeGameAI()
+    game = snake_game.SnakeGameAI(food_number=10)
 
     while True:
         # get old state
         # state_old = agent.get_state(game)
         state_old = agent.get_state_pixels(game)
+        # state_old = np.expand_dims(state_old, axis=0)
 
         # get move
         final_move = agent.get_action(state_old)
@@ -155,12 +163,13 @@ def train():
         reward, done, score = game.play_step(agent.move_list2str(final_move),
                                              visuals=True,
                                              food_number=10)
-        cv2.waitKey(1)
 
         state_new = agent.get_state_pixels(game)
+        # state_new = np.expand_dims(state_new, axis=0)
 
         state_old = np.transpose(state_old, (2, 0, 1))  # conv
         state_new = np.transpose(state_new, (2, 0, 1))  # conv
+
         # train short memory
         # agent.train_short_memory(state_old, final_move, reward, state_new, done)
 
@@ -177,13 +186,14 @@ def train():
                 record = score
                 agent.model.save()
 
-            print('Game', agent.n_games, 'Score', score, 'Record:', record)
-
             plot_scores.append(score)
             total_score += score
             mean_score = total_score / agent.n_games
-            plot_mean_scores.append(mean_score)
-            plot(plot_scores, plot_mean_scores)
+            #plot_mean_scores.append(mean_score)
+            #plot(plot_scores, plot_mean_scores)
+
+            print('Game', agent.n_games, 'Score', score, 'Record:', record, 'AVG:', mean_score)
+            print("memory len: {}".format(len(agent.memory)))
 
 
 if __name__ == '__main__':
