@@ -10,7 +10,7 @@ from sys import getsizeof
 
 MAX_MEMORY = 20_000
 BATCH_SIZE = 500
-LR = 0.001
+
 
 
 class Agent:
@@ -28,7 +28,8 @@ class Agent:
         self.model = Conv_QNet()
         # self.model.load_state_dict(torch.load("./model/model_conv.pth", map_location=torch.device('cpu')))
         self.model = self.model.to(self.device)
-        self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
+        self.LR = 0.0001
+        self.trainer = QTrainer(self.model, lr=self.LR, gamma=self.gamma)
 
         print("Device: {}".format(self.device))
 
@@ -106,12 +107,16 @@ class Agent:
 
     def get_action(self, state):
         # random moves: tradeoff exploration / exploitation
-        if self.n_games < 3000:
-            self.epsilon = 10
+        if self.n_games < 5000:
+            self.epsilon = 30
+            self.LR = 0.0001 * 5
         elif self.n_games < 10000:
-            self.epsilon = 5
+            self.epsilon = 10
+            self.LR = 0.0001 * 2
         else:
             self.epsilon = 0
+            self.LR = 0.0001
+
         final_move = [0, 0, 0, 0]  # [Right, Up, Left, Down]
         if random.randint(0, 100) < self.epsilon:  # 30% random moves
             move = random.randint(0, 3)
@@ -184,6 +189,8 @@ def train():
 
             if score > record:
                 record = score
+                agent.model.save()
+            if agent.n_games % 300 == 0:
                 agent.model.save()
 
             plot_scores.append(score)

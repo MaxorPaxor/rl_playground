@@ -129,9 +129,9 @@ class SnakeGameAI:
                                        GREEN, thickness=-1)
         # Draw snake
         for i, link in enumerate(self.snake):
-            color = tuple(c-30*i for c in WHITE)
-            if color[0] < 50:
-                color = (50, 50, 50)
+            color = (0, 0, 255-50*i)
+            if color[2] < 100:
+                color = (0, 0, 100)
             self.frame = cv2.rectangle(self.frame,
                                        (int(link[0]), int(link[1])),
                                        (int(link[0] + BLOCK_SIZE), int(link[1] + BLOCK_SIZE)),

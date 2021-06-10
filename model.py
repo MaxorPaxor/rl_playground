@@ -32,10 +32,10 @@ class Conv_QNet(nn.Module):
         # image size 640x640x3 reduced to 32x32x3
         # image size 320x320x3 reduced to 16x16x3 or x1 for grey
 
-        self.conv1 = nn.Conv2d(3, 10, 5)  # 12*12*10
-        self.conv2 = nn.Conv2d(10, 20, 5)  # 8*8*20
-        self.conv3 = nn.Conv2d(20, 30, 5)  # 4*4*30 -> 2*2*30
-        self.fc1 = nn.Linear(2 * 2 * 30, 128)
+        self.conv1 = nn.Conv2d(3, 16, 5)  # 12*12*10
+        self.conv2 = nn.Conv2d(16, 32, 5)  # 8*8*20
+        self.conv3 = nn.Conv2d(32, 64, 5)  # 4*4*30 -> 2*2*30
+        self.fc1 = nn.Linear(2 * 2 * 64, 128)
         self.fc2 = nn.Linear(128, 4)
         # self.fc3 = nn.Linear(64, 4)
 
