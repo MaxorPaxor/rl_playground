@@ -16,12 +16,12 @@ BODY = (155)
 FOOD = (55)
 
 BLOCK_SIZE = 20
-FPS = 22
+FPS = 7
 
 
 class SnakeGameAI:
 
-    def __init__(self, w=320, h=320, food_number=1):
+    def __init__(self, w=360, h=360, food_number=1):
         self.w = w
         self.h = h
         self.frame = np.zeros((self.h, self.w, 3), dtype='uint8')
@@ -43,8 +43,8 @@ class SnakeGameAI:
 
     def _place_food(self):
         while len(self.food) < self.food_number:
-            x = np.random.randint(0, (self.w - BLOCK_SIZE) // BLOCK_SIZE) * BLOCK_SIZE
-            y = np.random.randint(0, (self.h - BLOCK_SIZE) // BLOCK_SIZE) * BLOCK_SIZE
+            x = np.random.randint(1, (self.w - 2 * BLOCK_SIZE) // BLOCK_SIZE) * BLOCK_SIZE
+            y = np.random.randint(1, (self.h - 2 * BLOCK_SIZE) // BLOCK_SIZE) * BLOCK_SIZE
             food = [x, y]
 
             if self.food not in self.snake:
@@ -137,6 +137,12 @@ class SnakeGameAI:
                                        (int(link[0] + BLOCK_SIZE), int(link[1] + BLOCK_SIZE)),
                                        color, thickness=-1)
 
+        # Draw frame
+        self.frame = cv2.rectangle(self.frame, (0, 0), (self.w, BLOCK_SIZE), WHITE, thickness=-1)
+        self.frame = cv2.rectangle(self.frame, (0, 0), (BLOCK_SIZE, self.h), WHITE, thickness=-1)
+        self.frame = cv2.rectangle(self.frame, (self.w - BLOCK_SIZE, 0), (self.w, self.h), WHITE, thickness=-1)
+        self.frame = cv2.rectangle(self.frame, (0, self.h), (self.w, self.h - BLOCK_SIZE), WHITE, thickness=-1)
+
         if visuals:
             cv2.imshow('Snake', self.frame)
             # small_frame = self.frame[::BLOCK_SIZE, ::BLOCK_SIZE]
@@ -151,7 +157,7 @@ class SnakeGameAI:
         if pt is None:
             pt = self.head
         # hits boundary
-        if pt[0] > self.w - BLOCK_SIZE or pt[0] < 0 or pt[1] < 0 or pt[1] > self.h - BLOCK_SIZE:
+        if pt[0] > self.w - 2 * BLOCK_SIZE or pt[0] < BLOCK_SIZE or pt[1] < BLOCK_SIZE or pt[1] > self.h - 2 * BLOCK_SIZE:
             return True
         # hits itself
         if pt in self.snake[1:]:
@@ -169,17 +175,28 @@ class SnakeGameAI:
                 new_dir = 'up'
             if action == 'down':
                 new_dir = 'down'
+            if action == 'left':
+                new_dir = 'left'
+
         if self.direction == 'up':
             if action == 'left':
                 new_dir = 'left'
             if action == 'right':
                 new_dir = 'right'
+            if action == 'down':
+                new_dir = 'down'
+
         if self.direction == 'left':
             if action == 'up':
                 new_dir = 'up'
             if action == 'down':
                 new_dir = 'down'
+            if action == 'right':
+                new_dir = 'right'
+
         if self.direction == 'down':
+            if action == 'up':
+                new_dir = 'up'
             if action == 'left':
                 new_dir = 'left'
             if action == 'right':
