@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+from torch import distributions
 import os
 import copy
 
@@ -80,7 +81,7 @@ class ConvNet4(nn.Module):
         #x = self.dropout(x)
 
         # x = self.fc3(x)
-        x = F.softmax(x, dim=1)
+        x = distributions.Categorical(logits=x)
 
         return x
 
@@ -235,37 +236,32 @@ class PGTrainer:
         self.V = V
         self.target_V = copy.deepcopy(self.V)
 
-        self.optimizer_V = optim.Adam(self.V.parameters(), lr=lr_V)
+        self.optimizer_V = optim.Adam(V.parameters(), lr=lr_V)
         self.criterion_V = nn.MSELoss()
 
-        self.optimizer_PG = optim.Adam(self.policy.parameters(), lr=lr_policy)
-        # self.criterion_PG = nn.MSELoss()
+        self.optimizer_PG = optim.Adam(policy.parameters(), lr=lr_policy)
 
         self.batch_num = 0
 
     def train_step(self, state, action, reward, log_prob, done):
         state = torch.tensor(state, dtype=torch.float).to(self.device)  # [N, 3, 16+2, 16+2]
-        log_prob = torch.stack(log_prob)  # [N, 3, 16+2, 16+2]
+        log_prob = torch.stack(log_prob)
         action = torch.tensor(action, dtype=torch.long).to(self.device)  # [1, 4]
         reward = torch.tensor(reward, dtype=torch.float).to(self.device)
 
-        if len(state.shape) == 3:
-            # (1, x)
-            state = torch.unsqueeze(state, 0)
-            # log_prob = torch.unsqueeze(log_prob, 0)
-            action = torch.unsqueeze(action, 0)
-            reward = torch.unsqueeze(reward, 0)
-            done = (done,)
+        # Normalize rewards
+        if len(reward) > 1:
+            reward = (reward - reward.mean()) / (reward.std() + 1e-9)  # normalize discounted rewards
 
         # 1: Fit V(s)
-        if self.batch_num % 50 == 0:
+        if self.batch_num % 200 == 0:
             # compare_models(self.target_model, self.model)
             print("Updated model")
             self.target_V = copy.deepcopy(self.V)
             # compare_models(self.target_model, self.model)
 
         pred_V = self.V(state)
-        print("pred_v: {}".format(pred_V))
+        print("pred_v: {}".format(pred_V.squeeze(1)))
         target_V = self.target_V(state).detach()
 
         # go through all steps
@@ -287,12 +283,16 @@ class PGTrainer:
         A = target_V - pred_V
         A = A.squeeze(1).detach()
         print("A: {}".format(A))
+        print("log_prob: {}".format(log_prob.squeeze(1)))
 
-        # 3: Cal Policy Gradient
+        # 3: Calc Policy Gradient
         self.optimizer_PG.zero_grad()
-        loss_PG = - torch.dot(A, log_prob)
-        # print("logg_PG: {}".format(loss_PG))
+        loss_PG = -1 * torch.sum(log_prob * A)
+        print("log_PG: {}".format(loss_PG))
         loss_PG.backward()
         self.optimizer_PG.step()
+
+        for i in self.policy.parameters():
+            print(i)
 
         self.batch_num += 1

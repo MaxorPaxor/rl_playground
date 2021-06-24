@@ -35,11 +35,11 @@ class Agent:
         self.V = self.V.to(self.device)
 
         # Params
-        self.LR_policy = 5e-08
-        self.LR_V = 1e-04
+        self.LR_policy = 5e-3
+        self.LR_V = 5e-05
         self.gamma = 0.9  # discount rate
         self.BATCH_SIZE = 1024
-        self.epsilon = 20  # randomness
+        self.epsilon = 10  # randomness
         # self.trainer = QTrainer(self.model, lr=self.LR_policy, gamma=self.gamma)
         self.trainer_pg = PGTrainer(self.policy, self.V, lr_policy=self.LR_policy, lr_V=self.LR_V, gamma=self.gamma)
 
@@ -155,18 +155,30 @@ class Agent:
         state_tensor = torch.tensor(state, dtype=torch.float).to(self.device)
         state_tensor = state_tensor.unsqueeze(0)  # conv
         prediction = self.policy(state_tensor)
+        print("Preds: {}".format(prediction.probs))
 
-        if random.randint(0, 100) < self.epsilon:  # 30% random moves
+        if self.n_games < 10000:
+            self.epsilon = 5
+        elif self.n_games < 15000:
+            self.epsilon = 5
+        else:
+            self.epsilon = 5
+
+        if random.randint(0, 100) < self.epsilon:
             move = random.randint(0, 3)
-            log_prob = torch.log(prediction.squeeze(0)[move])
+            move = torch.tensor(move)
+
+            log_prob = prediction.log_prob(move)
             final_move[move] = 1
+            print("MOVE RANDOM: {}".format(final_move))
 
         else:
-            move = np.random.choice(4, p=np.squeeze(prediction.detach().numpy()))
-            log_prob = torch.log(prediction.squeeze(0)[move])
-            final_move[move] = 1
+            move = prediction.sample()
+            log_prob = prediction.log_prob(move)
 
-        print("Preds: {}".format(prediction))
+            move = move.to('cpu').detach().numpy().squeeze(0)
+            final_move[move] = 1
+            print("MOVE POLICY: {}".format(final_move))
 
         return final_move, log_prob
 
@@ -282,10 +294,11 @@ def train_pg():
             total_score += score
             mean_score = total_score / agent.n_games
             plot_mean_scores.append(mean_score)
-            #plot(plot_scores, plot_mean_scores)
+            # plot(plot_scores, plot_mean_scores)
 
             if agent.n_games % 1 == 0:
                 print('Game', agent.n_games, 'Score', score, 'Record:', record, 'AVG:', mean_score, 'Memory:', len(agent.memory))
+                print('=======================================================')
 
             agent.forget()
 

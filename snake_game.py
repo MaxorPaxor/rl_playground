@@ -31,11 +31,26 @@ class SnakeGameAI:
 
     def reset(self):
         # reset
-        self.direction = 'right'
+        self.direction = np.random.choice(["right", "up", "left", "down"], 1)[0]
         self.head = [int(self.w / 2), int(self.h / 2)]
-        self.snake = [self.head.copy(),
-                     [self.head[0] - BLOCK_SIZE, self.head[1]],
-                     [self.head[0] - (2 * BLOCK_SIZE), self.head[1]]]
+
+        if self.direction == "right":
+            self.snake = [self.head.copy(),
+                         [self.head[0] - BLOCK_SIZE, self.head[1]],
+                         [self.head[0] - (2 * BLOCK_SIZE), self.head[1]]]
+        elif self.direction == "up":
+            self.snake = [self.head.copy(),
+                          [self.head[0], self.head[1] + BLOCK_SIZE],
+                          [self.head[0], self.head[1] + (2 * BLOCK_SIZE)]]
+        elif self.direction == "left":
+            self.snake = [self.head.copy(),
+                          [self.head[0] + BLOCK_SIZE, self.head[1]],
+                          [self.head[0] + (2 * BLOCK_SIZE), self.head[1]]]
+        else:  # down
+            self.snake = [self.head.copy(),
+                          [self.head[0], self.head[1] - BLOCK_SIZE],
+                          [self.head[0], self.head[1] - (2 * BLOCK_SIZE)]]
+
         self.score = 0
         self.food = []
         self._place_food()
