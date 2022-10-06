@@ -5,6 +5,9 @@ import torch.nn.functional as F
 from torch import distributions
 import os
 import copy
+import numpy as np
+
+torch.autograd.set_detect_anomaly(True)
 
 
 class Linear_QNet(nn.Module):
@@ -33,35 +36,40 @@ class ConvNet4(nn.Module):
         # image size 640x640x3 reduced to 32x32x3
         # image size 360x360x3 reduced to 18x18x3 or x1 for grey
 
-        self.conv1 = nn.Conv2d(3, 16, 5)  # 14*14*16
+        # self.conv1 = nn.Conv2d(3, 8, 1)  # 18*18*8
         # self.bn1 = nn.BatchNorm2d(16)
 
-        self.conv2 = nn.Conv2d(16, 32, 5)  # 10*10*32
+        # self.conv2 = nn.Conv2d(8, 12, 5)  # 8*8*12
         # self.bn2 = nn.BatchNorm2d(32)
 
-        self.conv3 = nn.Conv2d(32, 64, 3)  # 8*8*64
+        # self.conv3 = nn.Conv2d(12, 16, 3)  # 6*6*16
         # self.bn2 = nn.BatchNorm2d(32)
 
-        # self.conv4 = nn.Conv2d(64, 96, 3)  # 6*6*96
+        # self.conv4 = nn.Conv2d(16, 32, 3)  # 6*6*96
         # self.bn2 = nn.BatchNorm2d(32)
 
-        self.fc1 = nn.Linear(4 * 4 * 64, 64)
-        self.fc2 = nn.Linear(64, 4)
-        # self.fc3 = nn.Linear(16, 4)
+        # self.fc1 = nn.Linear(10 * 10 * 3, 128)
+        # self.fc2 = nn.Linear(128, 64)
+        # self.fc3 = nn.Linear(64, 16)
+        # self.fc4 = nn.Linear(16, 4)
+
+        self.fc1 = nn.Linear(11, 16)
+        self.fc3 = nn.Linear(16, 16)
+        self.fc4 = nn.Linear(16, 4)
 
         # Define proportion or neurons to dropout
         self.dropout = nn.Dropout(0.25)
 
     def forward(self, x):
-        x = F.relu(self.conv1(x))
+        # x = F.relu(self.conv1(x))
         # x = self.bn1(x)
         #x = self.dropout(x)
 
-        x = F.relu(self.conv2(x))
+        # x = F.relu(self.conv2(x))
         # x = self.bn2(x)
         #x = self.dropout(x)
 
-        x = F.relu(self.conv3(x))
+        # x = F.relu(self.conv3(x))
         # x = self.bn3(x)
         #x = self.dropout(x)
 
@@ -69,19 +77,28 @@ class ConvNet4(nn.Module):
         # x = self.bn4(x)
         #x = self.dropout(x)
 
-        x = F.max_pool2d(x, 2)
-        x = torch.flatten(x, 1)  # flatten all dimensions except the batch dimension
+        # x = F.max_pool2d(x, 2)
+        # x = torch.flatten(x, 1)  # flatten all dimensions except the batch dimension
 
         x = self.fc1(x)
         x = F.relu(x)
-        #x = self.dropout(x)
+        x = self.dropout(x)
 
-        x = self.fc2(x)
+        # x = self.fc2(x)
         # x = F.relu(x)
-        #x = self.dropout(x)
+        # x = self.dropout(x)
+
+        x = self.fc3(x)
+        x = F.relu(x)
+        x = self.dropout(x)
+
+        x = self.fc4(x)
+        x = self.dropout(x)
+        x = nn.Softmax(dim=-1)(x)
+        # x = F.relu(x)
 
         # x = self.fc3(x)
-        x = distributions.Categorical(logits=x)
+        # x = distributions.Categorical(logits=x)
 
         return x
 
@@ -181,10 +198,37 @@ class QTrainer:
         self.criterion = nn.MSELoss()
         self.batch_num = 0
 
+    def update_network_parameters(self, tau=0.001):  # tau=0.03 works best
+        # Network params
+        model_params = self.model.named_parameters()
+        target_model_params = self.target_model.named_parameters()
+
+        model_params_dict = dict(model_params)
+        target_model_params_dict = dict(target_model_params)
+
+        # Network buffers
+        model_buffers = self.model.named_buffers()
+        target_model_buffers = self.target_model.named_buffers()
+
+        model_buffers_dict = dict(model_buffers)
+        target_model_buffers_dict = dict(target_model_buffers)
+
+        # Update params
+        for name in model_params:
+            model_params_dict[name] = tau * model_params_dict[name].clone() + \
+                                      (1 - tau) * target_model_params_dict[name].clone()
+
+        # Update buffers
+        for name in model_buffers_dict:
+            model_buffers_dict[name] = tau * model_buffers_dict[name].clone() + \
+                                       (1 - tau) * target_model_buffers_dict[name].clone()
+
+        self.target_model.load_state_dict(model_params_dict)
+
     def train_step(self, state, action, reward, next_state, done):
-        state = torch.tensor(state, dtype=torch.float).to(self.device)  # [N, 3, 16+2, 16+2]
-        next_state = torch.tensor(next_state, dtype=torch.float).to(self.device)  # [N, 3, 16+2, 16+2]
-        action = torch.tensor(action, dtype=torch.long).to(self.device)  # [1, 4]
+        state = torch.tensor(np.array(state), dtype=torch.float).to(self.device)  # [N, 3, 16+2, 16+2]
+        next_state = torch.tensor(np.array(next_state), dtype=torch.float).to(self.device)  # [N, 3, 16+2, 16+2]
+        # action = torch.tensor(action, dtype=torch.long).to(self.device)  # [1, 4]
         reward = torch.tensor(reward, dtype=torch.float).to(self.device)
 
         if len(state.shape) == 3:
@@ -195,17 +239,19 @@ class QTrainer:
             reward = torch.unsqueeze(reward, 0)
             done = (done,)
 
+        # Normalize rewards
+        if len(reward) > 1:
+            reward = (reward - reward.mean()) / (reward.std() + 1e-9)  # normalize discounted rewards
+
         # 1: predicted Q values with current state
         pred = self.model(state)
         target = self.target_model(state)
-        # (n, 4) where the second dimension is the Q value for that action
-        # pred = Q(si, ai) = [Q_right, Q_up, Q_left, Q_down]_i
 
-        if self.batch_num % 60 == 0:
-            # compare_models(self.target_model, self.model)
-            print("Updated model")
-            self.target_model = copy.deepcopy(self.model)
-            # compare_models(self.target_model, self.model)
+        # if self.batch_num % 50 == 0:
+        #     # compare_models(self.target_model, self.model)
+        #     print("Updated model")
+        #     self.target_model = copy.deepcopy(self.model)
+        #     # compare_models(self.target_model, self.model)
 
         # go through all steps
         for idx in range(len(done)):
@@ -214,11 +260,8 @@ class QTrainer:
                 Q_new = reward[idx] + self.gamma * torch.max(self.target_model(next_state[idx].unsqueeze(0)))
                 # yi = r(s,a) + gamma * max_ai' ( Q(si', ai') )
 
+            target = target.clone()
             target[idx][torch.argmax(action[idx]).item()] = Q_new
-            # action[idx] = [0 0 1 0]
-            # torch.argmax(action[idx]).item() = 2
-            # target[idx] = [Q_right, Q_up, Q_left, Q_down]_idx
-            # target[idx][2] = Q_new = [Q_right, Q_up, _Q_new_, Q_down]_idx
 
         self.optimizer.zero_grad()
         loss = self.criterion(target, pred)
@@ -226,6 +269,8 @@ class QTrainer:
 
         self.optimizer.step()
         self.batch_num += 1
+
+        self.update_network_parameters()
 
 
 class PGTrainer:
@@ -261,7 +306,7 @@ class PGTrainer:
             # compare_models(self.target_model, self.model)
 
         pred_V = self.V(state)
-        print("pred_v: {}".format(pred_V.squeeze(1)))
+        # print("pred_v: {}".format(pred_V.squeeze(1)))
         target_V = self.target_V(state).detach()
 
         # go through all steps
@@ -282,17 +327,17 @@ class PGTrainer:
         # 2: Evaluate A(s, a)
         A = target_V - pred_V
         A = A.squeeze(1).detach()
-        print("A: {}".format(A))
-        print("log_prob: {}".format(log_prob.squeeze(1)))
+        # print("A: {}".format(A))
+        # print("log_prob: {}".format(log_prob.squeeze(1)))
 
         # 3: Calc Policy Gradient
         self.optimizer_PG.zero_grad()
         loss_PG = -1 * torch.sum(log_prob * A)
-        print("log_PG: {}".format(loss_PG))
+        print("loss_PG: {}".format(loss_PG))
         loss_PG.backward()
         self.optimizer_PG.step()
 
-        for i in self.policy.parameters():
-            print(i)
+        # for i in self.policy.parameters():
+        #     print(i)
 
         self.batch_num += 1
