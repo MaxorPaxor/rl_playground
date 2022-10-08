@@ -21,13 +21,16 @@ FPS = 7
 
 class SnakeGameAI:
 
-    def __init__(self, w=360, h=360, food_number=1):
+    def __init__(self, w=360, h=360, food_number=1, record=False):
         self.w = w
         self.h = h
         self.frame = np.zeros((self.h, self.w, 3), dtype='uint8')
         self.food_number = food_number
-        # init game state
         self.reset()
+
+        self.record = record
+        if self.record:
+            self.writer = cv2.VideoWriter('snake.mp4', cv2.VideoWriter_fourcc(*'DIVX'), 20, (game.w, game.h))
 
     def reset(self):
         # reset
@@ -91,6 +94,8 @@ class SnakeGameAI:
                 other = 'up'
             if k == ord('q'):
                 action = 'quit'
+                if self.record:
+                    self.writer.release()
 
             if k != -1 and move != self.direction and other != self.direction:
                 # clicked = True
@@ -130,6 +135,9 @@ class SnakeGameAI:
             # small_frame = self.frame[::BLOCK_SIZE, ::BLOCK_SIZE]
             # small_frame = cv2.resize(self.frame, (18, 18))
             # cv2.imshow('Snake', small_frame)
+
+            if self.record:
+                self.writer.write(self.frame)
             if not human:
                 cv2.waitKey(1)
 

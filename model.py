@@ -11,17 +11,40 @@ torch.autograd.set_detect_anomaly(True)
 
 
 class Linear_QNet(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
+    def __init__(self,):
         super().__init__()
-        self.linear1 = nn.Linear(input_size, hidden_size)
-        self.linear2 = nn.Linear(hidden_size, output_size)
+        # self.fc1 = nn.Linear(18 * 18, 256)
+        # self.fc2 = nn.Linear(256, 128)
+        # self.fc3 = nn.Linear(128, 64)
+        # self.fc4 = nn.Linear(64, 4)
+
+        self.fc1 = nn.Linear(11, 64)
+        self.fc3 = nn.Linear(64, 64)
+        self.fc4 = nn.Linear(64, 4)
+
+        # Define proportion or neurons to dropout
+        self.dropout = nn.Dropout(0.25)
 
     def forward(self, x):
-        x = F.relu(self.linear1(x))
-        x = self.linear2(x)
+        x = torch.flatten(x, 1)  # flatten all dimensions except the batch dimension
+
+        x = self.fc1(x)
+        x = F.relu(x)
+        # x = self.dropout(x)
+
+        # x = self.fc2(x)
+        # x = F.relu(x)
+        # x = self.dropout(x)
+
+        x = self.fc3(x)
+        x = F.relu(x)
+        # x = self.dropout(x)
+
+        x = self.fc4(x)
+        # x = self.dropout(x)
         return x
 
-    def save(self, file_name='model.pth'):
+    def save(self, file_name='lin_q.pth'):
         model_folder_path = './model'
         if not os.path.exists(model_folder_path):
             os.makedirs(model_folder_path)
@@ -48,18 +71,6 @@ class ConvNet4(nn.Module):
         # self.conv4 = nn.Conv2d(16, 32, 3)  # 6*6*96
         # self.bn2 = nn.BatchNorm2d(32)
 
-        self.fc1 = nn.Linear(18 * 18, 256)
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, 64)
-        self.fc4 = nn.Linear(64, 4)
-
-        # self.fc1 = nn.Linear(11, 256)
-        # self.fc3 = nn.Linear(256, 256)
-        # self.fc4 = nn.Linear(256, 4)
-
-        # Define proportion or neurons to dropout
-        self.dropout = nn.Dropout(0.25)
-
     def forward(self, x):
         # x = F.relu(self.conv1(x))
         # x = self.bn1(x)
@@ -78,24 +89,6 @@ class ConvNet4(nn.Module):
         #x = self.dropout(x)
 
         # x = F.max_pool2d(x, 2)
-        x = torch.flatten(x, 1)  # flatten all dimensions except the batch dimension
-
-        x = self.fc1(x)
-        x = F.relu(x)
-        x = self.dropout(x)
-
-        x = self.fc2(x)
-        x = F.relu(x)
-        x = self.dropout(x)
-
-        x = self.fc3(x)
-        x = F.relu(x)
-        x = self.dropout(x)
-
-        x = self.fc4(x)
-        # x = self.dropout(x)
-        # x = nn.Softmax(dim=-1)(x)
-        # x = F.relu(x)
 
         # x = self.fc3(x)
         # x = distributions.Categorical(logits=x)

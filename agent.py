@@ -23,9 +23,8 @@ class Agent:
         self.n_games = 0
 
         # Models
-        # self.model = Linear_QNet(11, 256, 4)
-        self.model = ConvNet4()
-        # self.model.load_state_dict(torch.load("./model/Policy_ConvNet4.pth", map_location=torch.device('cpu')))
+        self.model = Linear_QNet()
+        # self.model.load_state_dict(torch.load("./model/lin_q.pth", map_location=torch.device('cpu')))
         self.model = self.model.to(self.device)
 
         # self.policy = ConvNet4()
@@ -240,12 +239,12 @@ def train_ql():
     total_score = 0
     record = 0
     agent = Agent()
-    game = snake_game.SnakeGameAI(food_number=15)
+    game = snake_game.SnakeGameAI(food_number=1)
 
     while True:
         # get old state
-        # state_old = agent.get_state(game)
-        state_old = agent.get_state_pixels(game)
+        state_old = agent.get_state(game)
+        # state_old = agent.get_state_pixels(game)
 
         # get move
         final_move = agent.get_action(state_old, game)
@@ -253,13 +252,13 @@ def train_ql():
         # perform move and get new state
         reward, done, score = game.play_step(agent.move_prediction2str(final_move),
                                              visuals=True,
-                                             food_number=15)
+                                             food_number=1)
 
         # print(f"move: {agent.move_prediction2str(final_move)}")
         # cv2.waitKey(0)
 
-        # state_new = agent.get_state(game)
-        state_new = agent.get_state_pixels(game)
+        state_new = agent.get_state(game)
+        # state_new = agent.get_state_pixels(game)
 
         # remember
         agent.remember(state_old, final_move, reward, state_new, done)
@@ -274,8 +273,8 @@ def train_ql():
                 agent.model.save()
             if agent.n_games % 50 == 0:
                 agent.model.save()
-            if agent.n_games % 16 == 0:
-                for _ in range(40):
+            if agent.n_games % 20 == 0:
+                for _ in range(20):
                     agent.train_long_memory()
 
             plot_scores.append(score)
