@@ -18,7 +18,7 @@ class Agent:
         print("Device: {}".format(self.device))
 
         # Buffer
-        self.MAX_MEMORY = 100_000
+        self.MAX_MEMORY = 200_000
         self.memory = deque(maxlen=int(self.MAX_MEMORY))  # popleft()
         self.n_games = 0
 
@@ -38,6 +38,7 @@ class Agent:
         # Params
         self.LR_policy = 3e-4
         self.LR_v = 3e-04
+
         self.gamma = 0.95  # discount rate
         self.BATCH_SIZE = 256
 
@@ -271,11 +272,11 @@ def train_ql():
 
             if score > record:
                 record = score
-                agent.model.save()
+                agent.model.save(file_name='lin_q_best.pth')
             if agent.n_games % 50 == 0:
                 agent.model.save()
-            if agent.n_games % 20 == 0:
-                for _ in range(20):
+            if agent.n_games % 16 == 0:
+                for _ in range(16):
                     agent.train_long_memory()
 
             plot_scores.append(score)

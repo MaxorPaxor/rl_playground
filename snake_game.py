@@ -30,7 +30,7 @@ class SnakeGameAI:
 
         self.record = record
         if self.record:
-            self.writer = cv2.VideoWriter('snake.mp4', cv2.VideoWriter_fourcc(*'DIVX'), 20, (game.w, game.h))
+            self.writer = cv2.VideoWriter('snake.mp4', cv2.VideoWriter_fourcc(*'DIVX'), 20, (self.w, self.h))
 
     def reset(self):
         # reset
@@ -139,7 +139,11 @@ class SnakeGameAI:
             if self.record:
                 self.writer.write(self.frame)
             if not human:
-                cv2.waitKey(1)
+                k = cv2.waitKey(20)
+                if k == ord('q'):
+                    print(k)
+                    if self.record:
+                        self.writer.release()
 
     def play_step(self, action=None, visuals=False, food_number=1):
         self.food_number = food_number
