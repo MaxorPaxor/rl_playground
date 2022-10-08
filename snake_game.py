@@ -21,7 +21,7 @@ FPS = 7
 
 class SnakeGameAI:
 
-    def __init__(self, w=360, h=360, food_number=1, record=False):
+    def __init__(self, w=200, h=200, food_number=1, record=False):
         self.w = w
         self.h = h
         self.frame = np.zeros((self.h, self.w, 3), dtype='uint8')

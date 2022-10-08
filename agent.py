@@ -5,7 +5,7 @@ import cv2
 from collections import deque
 
 import snake_game
-from model import Linear_QNet, ConvNet1, ConvNet4, QTrainer, PGTrainer
+from model import Linear_QNet, Value, Actor, QTrainer, PGTrainer
 from helper import plot
 
 from sys import getsizeof
@@ -23,30 +23,31 @@ class Agent:
         self.n_games = 0
 
         # Models
-        self.model = Linear_QNet()
+        # self.model = Linear_QNet()
         # self.model.load_state_dict(torch.load("./model/lin_q.pth", map_location=torch.device('cpu')))
-        self.model = self.model.to(self.device)
+        # self.model = self.model.to(self.device)
 
-        # self.policy = ConvNet4()
-        # self.policy.load_state_dict(torch.load("./model/Policy_ConvNet4.pth", map_location=torch.device('cpu')))
-        # self.policy = self.policy.to(self.device)
+        self.policy = Actor()
+        # self.policy.load_state_dict(torch.load("./model/actor.pth", map_location=torch.device('cpu')))
+        self.policy = self.policy.to(self.device)
 
-        # self.V = ConvNet1()
-        # self.V.load_state_dict(torch.load("./model/V_ConvNet1.pth", map_location=torch.device('cpu')))
-        # self.V = self.V.to(self.device)
+        self.v = Value()
+        # self.V.load_state_dict(torch.load("./model/value.pth", map_location=torch.device('cpu')))
+        self.v = self.v.to(self.device)
 
         # Params
         self.LR_policy = 3e-4
-        self.LR_V = 1e-04
+        self.LR_v = 3e-04
         self.gamma = 0.95  # discount rate
-        self.BATCH_SIZE = 64
+        self.BATCH_SIZE = 256
 
         self.epsilon = 15  # randomness
         self.epsilon_decay = 1e-05
-        self.trainer = QTrainer(self.model, lr=self.LR_policy, gamma=self.gamma)
-        # self.trainer_pg = PGTrainer(self.policy, self.V, lr_policy=self.LR_policy, lr_V=self.LR_V, gamma=self.gamma)
+        # self.trainer = QTrainer(self.model, lr=self.LR_policy, gamma=self.gamma)
+        self.trainer_pg = PGTrainer(self.policy, self.v, lr_policy=self.LR_policy, lr_v=self.LR_v, gamma=self.gamma)
 
-        print(count_parameters(self.model))
+        print(count_parameters(self.policy))
+        print(count_parameters(self.v))
 
     @staticmethod
     def get_state(game):
@@ -122,7 +123,7 @@ class Agent:
         if len(self.memory) > self.BATCH_SIZE:
             mini_sample = random.sample(self.memory, self.BATCH_SIZE)  # list of tuples
         else:
-            mini_sample = self.memory
+            mini_sample = random.sample(self.memory, len(self.memory))
 
         states, actions, rewards, next_states, dones = zip(*mini_sample)
         self.trainer.train_step(states, actions, rewards, next_states, dones)
@@ -131,8 +132,9 @@ class Agent:
         self.trainer.train_step(state, action, reward, next_state, done)
 
     def train_pg(self):
-        traj = self.memory
-        states, actions, rewards, next_states, dones = zip(*traj)
+        mini_sample = self.memory
+
+        states, actions, rewards, next_states, dones = zip(*mini_sample)
         self.trainer_pg.train_step(states, actions, rewards, next_states, dones)
 
     def get_action(self, state, game):
@@ -165,44 +167,43 @@ class Agent:
         return final_move
 
     def get_action_pg(self, state, game):
+        self.epsilon = self.epsilon * (1 - self.epsilon_decay)
+        if self.epsilon < 3:
+            self.epsilon = 3
 
-        final_move = [0, 0, 0, 0]  # [Right, Up, Left, Down]
+        # if random.randint(0, 100) < self.epsilon:
+        #     direction = game.direction
+        #
+        #     if direction == 'right':
+        #         new_dir = np.random.choice(["up", "down"], 1)[0]
+        #     if direction == 'up':
+        #         new_dir = np.random.choice(["right", "left"], 1)[0]
+        #     if direction == 'left':
+        #         new_dir = np.random.choice(["up", "down"], 1)[0]
+        #     if direction == 'down':
+        #         new_dir = np.random.choice(["right", "left"], 1)[0]
+        #
+        #     final_move = self.move_str2list(new_dir)
+        #
+        # else:
 
-        # state = np.transpose(state, (2, 0, 1))  # conv
         state_tensor = torch.tensor(state, dtype=torch.float).to(self.device)
-        # state_tensor = state_tensor.unsqueeze(0)  # conv
+        state_tensor = state_tensor.unsqueeze(0)  # conv
         prediction = self.policy(state_tensor)
-        # print("Preds: {}".format(prediction.probs))
 
-        if self.n_games < 10000:
-            self.epsilon = 5
-        elif self.n_games < 15000:
-            self.epsilon = 5
-        else:
-            self.epsilon = 5
+        move = prediction.sample().detach()
+        log_prob = prediction.log_prob(move)
 
-        if random.randint(0, 100) < self.epsilon:
-            move = random.randint(0, 3)
-            move = torch.tensor(move).to(self.device)
+        return move, log_prob
 
-            log_prob = prediction.log_prob(move)
-            final_move[move] = 1
-            print("MOVE RANDOM: {}".format(final_move))
+    def move_prediction2str(self, prediction=None, move=None):
 
-        else:
-            move = prediction.sample()
-            log_prob = prediction.log_prob(move)
-
-            move = move.to('cpu').detach().numpy().squeeze(0)
-            final_move[move] = 1
-            print("MOVE POLICY: {}".format(final_move))
-
-        return final_move, log_prob
-
-    def move_prediction2str(self, prediction):
+        if prediction is not None:
+            idx = torch.argmax(prediction)
+        if move is not None:
+            idx = move
 
         move_list = [0, 0, 0, 0]
-        idx = torch.argmax(prediction)
         move_list[idx] = 1
 
         # [Right, Up, Left, Down]
@@ -303,29 +304,35 @@ def train_pg():
 
         # get move
         # final_move, log_prob = agent.get_action_pg(state_old, game)
-        final_move, log_prob = agent.get_action(state_old, game)
+        final_move, log_prob = agent.get_action_pg(state_old, game)
 
         # perform move and get new state
-        reward, done, score = game.play_step(agent.move_list2str(final_move),
+        reward, done, score = game.play_step(agent.move_prediction2str(move=final_move),
                                              visuals=True,
                                              food_number=1)
 
+        state_new = agent.get_state(game)
+
         # remember
-        # state_old = np.transpose(state_old, (2, 0, 1))  # conv
-        agent.remember(state_old, final_move, reward, log_prob, done)
+        # agent.remember(state_old, final_move, reward, log_prob, done)
+        agent.remember(state_old, log_prob, reward, state_new, done)
 
         if done:
             # train long memory, plot result
             game.reset()
             agent.n_games += 1
-            agent.train_pg()
 
             if score > record:
                 record = score
 
             if agent.n_games % 50 == 0:
                 agent.policy.save()
-                agent.V.save()
+                agent.v.save()
+
+            if len(agent.memory) > agent.BATCH_SIZE:
+                for _ in range(1):
+                    agent.train_pg()
+                    agent.forget()
 
             plot_scores.append(score)
             total_score += score
@@ -337,7 +344,7 @@ def train_pg():
                 print('Game', agent.n_games, 'Score', score, 'Record:', record, 'AVG:', mean_score, 'Memory:', len(agent.memory))
                 print('=======================================================')
 
-            agent.forget()
+            # agent.forget()
 
 
 def count_parameters(model):
@@ -345,5 +352,5 @@ def count_parameters(model):
 
 
 if __name__ == "__main__":
-    train_ql()
-    # train_pg()
+    # train_ql()
+    train_pg()
