@@ -48,14 +48,14 @@ class ConvNet4(nn.Module):
         # self.conv4 = nn.Conv2d(16, 32, 3)  # 6*6*96
         # self.bn2 = nn.BatchNorm2d(32)
 
-        # self.fc1 = nn.Linear(10 * 10 * 3, 128)
-        # self.fc2 = nn.Linear(128, 64)
-        # self.fc3 = nn.Linear(64, 16)
-        # self.fc4 = nn.Linear(16, 4)
+        self.fc1 = nn.Linear(18 * 18, 256)
+        self.fc2 = nn.Linear(256, 128)
+        self.fc3 = nn.Linear(128, 64)
+        self.fc4 = nn.Linear(64, 4)
 
-        self.fc1 = nn.Linear(11, 128)
-        self.fc3 = nn.Linear(128, 128)
-        self.fc4 = nn.Linear(128, 4)
+        # self.fc1 = nn.Linear(11, 256)
+        # self.fc3 = nn.Linear(256, 256)
+        # self.fc4 = nn.Linear(256, 4)
 
         # Define proportion or neurons to dropout
         self.dropout = nn.Dropout(0.25)
@@ -78,23 +78,23 @@ class ConvNet4(nn.Module):
         #x = self.dropout(x)
 
         # x = F.max_pool2d(x, 2)
-        # x = torch.flatten(x, 1)  # flatten all dimensions except the batch dimension
+        x = torch.flatten(x, 1)  # flatten all dimensions except the batch dimension
 
         x = self.fc1(x)
         x = F.relu(x)
         x = self.dropout(x)
 
-        # x = self.fc2(x)
-        # x = F.relu(x)
-        # x = self.dropout(x)
+        x = self.fc2(x)
+        x = F.relu(x)
+        x = self.dropout(x)
 
         x = self.fc3(x)
         x = F.relu(x)
         x = self.dropout(x)
 
         x = self.fc4(x)
-        x = self.dropout(x)
-        x = nn.Softmax(dim=-1)(x)
+        # x = self.dropout(x)
+        # x = nn.Softmax(dim=-1)(x)
         # x = F.relu(x)
 
         # x = self.fc3(x)
@@ -194,11 +194,11 @@ class QTrainer:
         self.gamma = gamma
         self.model = model
         self.target_model = copy.deepcopy(model)
-        self.optimizer = optim.Adam(model.parameters(), lr=self.lr)
+        self.optimizer = optim.Adam(model.parameters(), lr=self.lr, weight_decay=1e-2)
         self.criterion = nn.MSELoss()
         self.batch_num = 0
 
-    def update_network_parameters(self, tau=0.001):  # tau=0.03 works best
+    def update_network_parameters(self, tau=0.01):  # tau=0.03 works best
         # Network params
         model_params = self.model.named_parameters()
         target_model_params = self.target_model.named_parameters()
@@ -240,18 +240,18 @@ class QTrainer:
             done = (done,)
 
         # Normalize rewards
-        if len(reward) > 1:
-            reward = (reward - reward.mean()) / (reward.std() + 1e-9)  # normalize discounted rewards
+        # if len(reward) > 1:
+        #     reward = (reward - reward.mean()) / (reward.std() + 1e-9)  # normalize discounted rewards
 
-        # 1: predicted Q values with current state
-        pred = self.model(state)
-        target = self.target_model(state)
-
-        # if self.batch_num % 50 == 0:
+        # if self.batch_num % 200 == 0:
         #     # compare_models(self.target_model, self.model)
         #     print("Updated model")
         #     self.target_model = copy.deepcopy(self.model)
         #     # compare_models(self.target_model, self.model)
+
+        # 1: predicted Q values with current state
+        pred = self.model(state)
+        target = self.target_model(state)
 
         # go through all steps
         for idx in range(len(done)):
@@ -265,8 +265,9 @@ class QTrainer:
 
         self.optimizer.zero_grad()
         loss = self.criterion(target, pred)
+        print(f"Loss:{loss.item()}")
         loss.backward()
-
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), .25)
         self.optimizer.step()
         self.batch_num += 1
 

@@ -41,8 +41,9 @@ class Agent:
         self.LR_V = 1e-04
         self.gamma = 0.95  # discount rate
         self.BATCH_SIZE = 64
-        self.epsilon = 10  # randomness
-        self.epsilon_decay = 3e-05
+
+        self.epsilon = 15  # randomness
+        self.epsilon_decay = 1e-05
         self.trainer = QTrainer(self.model, lr=self.LR_policy, gamma=self.gamma)
         # self.trainer_pg = PGTrainer(self.policy, self.V, lr_policy=self.LR_policy, lr_V=self.LR_V, gamma=self.gamma)
 
@@ -102,11 +103,14 @@ class Agent:
     def get_state_pixels(game):
         frame = game.frame
         block_size = 20
-        # frame_small = frame[::block_size, ::block_size, :]
-        frame_small = cv2.resize(frame, (10, 10))
+        frame_small = cv2.resize(frame, (18, 18))
+        frame_small = cv2.cvtColor(frame_small, cv2.COLOR_BGR2GRAY)
         frame_small = frame_small.astype(np.float64) / 255.
-        frame_small = np.transpose(frame_small, (2, 0, 1))  # conv
         # print(frame_small)
+
+        frame_small = np.expand_dims(frame_small, axis=-1)
+        frame_small = np.transpose(frame_small, (2, 0, 1))  # conv
+
         return frame_small
 
     def remember(self, state, action, reward, next_state, done):
@@ -134,9 +138,9 @@ class Agent:
 
     def get_action(self, state, game):
         # random moves: tradeoff exploration / exploitation
-        # self.epsilon = self.epsilon * (1 - self.epsilon_decay)
-        if self.epsilon < 5:
-            self.epsilon = 5
+        self.epsilon = self.epsilon * (1 - self.epsilon_decay)
+        if self.epsilon < 3:
+            self.epsilon = 3
 
         if random.randint(0, 100) < self.epsilon:
             direction = game.direction
@@ -154,7 +158,7 @@ class Agent:
 
         else:
             state_tensor = torch.tensor(state, dtype=torch.float).to(self.device)
-            # state_tensor = state_tensor.unsqueeze(0)  # conv
+            state_tensor = state_tensor.unsqueeze(0)  # conv
 
             prediction = self.model(state_tensor)
             final_move = prediction
@@ -236,12 +240,12 @@ def train_ql():
     total_score = 0
     record = 0
     agent = Agent()
-    game = snake_game.SnakeGameAI(food_number=1)
+    game = snake_game.SnakeGameAI(food_number=15)
 
     while True:
         # get old state
-        state_old = agent.get_state(game)
-        # state_old = agent.get_state_pixels(game)
+        # state_old = agent.get_state(game)
+        state_old = agent.get_state_pixels(game)
 
         # get move
         final_move = agent.get_action(state_old, game)
@@ -249,13 +253,13 @@ def train_ql():
         # perform move and get new state
         reward, done, score = game.play_step(agent.move_prediction2str(final_move),
                                              visuals=True,
-                                             food_number=1)
+                                             food_number=15)
 
         # print(f"move: {agent.move_prediction2str(final_move)}")
         # cv2.waitKey(0)
 
-        state_new = agent.get_state(game)
-        # state_new = agent.get_state_pixels(game)
+        # state_new = agent.get_state(game)
+        state_new = agent.get_state_pixels(game)
 
         # remember
         agent.remember(state_old, final_move, reward, state_new, done)
@@ -264,7 +268,6 @@ def train_ql():
             # train long memory, plot result
             game.reset()
             agent.n_games += 1
-            agent.train_long_memory()
 
             if score > record:
                 record = score
@@ -272,7 +275,7 @@ def train_ql():
             if agent.n_games % 50 == 0:
                 agent.model.save()
             if agent.n_games % 16 == 0:
-                for _ in range(20):
+                for _ in range(40):
                     agent.train_long_memory()
 
             plot_scores.append(score)

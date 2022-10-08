@@ -5,7 +5,7 @@ import time
 # rgb colors
 WHITE = (255, 255, 255)
 BLUE = (200, 0, 0)
-GREEN = (0, 255, 0)
+GREEN = (100, 255, 100)
 RED = (0, 0, 255)
 BLACK = (0, 0, 0)
 
@@ -21,7 +21,7 @@ FPS = 7
 
 class SnakeGameAI:
 
-    def __init__(self, w=200, h=200, food_number=1):
+    def __init__(self, w=360, h=360, food_number=1):
         self.w = w
         self.h = h
         self.frame = np.zeros((self.h, self.w, 3), dtype='uint8')
@@ -110,7 +110,7 @@ class SnakeGameAI:
                                        GREEN, thickness=-1)
         # Draw snake
         for i, link in enumerate(self.snake):
-            color = (0, 0, 255 - 50 * i)
+            color = (0, 70, 255 - 50 * i)
             if color[2] < 100:
                 color = (0, 0, 100)
             self.frame = cv2.rectangle(self.frame,
