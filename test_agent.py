@@ -7,13 +7,13 @@ import cv2
 
 
 def test_game():
-    game = snake_game.SnakeGameAI(food_number=1)
+    game = snake_game.SnakeGameAI(food_number=1, record=True)
     agent = Agent()
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
 
-    agent.model.load_state_dict(torch.load("./model/Policy_ConvNet4.pth", map_location=torch.device('cpu')))
+    agent.model.load_state_dict(torch.load("./model/lin_q_best_2.pth", map_location=torch.device('cpu')))
     # agent.model.load_state_dict(torch.load("./model/model.pth", map_location=torch.device('cpu')))
     agent.model.eval()
     agent.model.to(device)  # Move our model to the gpu memory
@@ -32,11 +32,10 @@ def test_game():
                                              visuals=True,
                                              food_number=1)
 
-        # print(reward, game_over, score, final_move, agent.move_prediction2str(final_move))
-        cv2.waitKey(5)
+        # print(reward, game_over, score)
 
         if done:
-            # train long memory, plot result
+            print(score)
             game.reset()
 
 

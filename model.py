@@ -19,6 +19,7 @@ class Linear_QNet(nn.Module):
         # self.fc4 = nn.Linear(64, 4)
 
         self.fc1 = nn.Linear(11, 64)
+        self.fc2 = nn.Linear(64, 64)
         self.fc3 = nn.Linear(64, 64)
         self.fc4 = nn.Linear(64, 4)
 
@@ -187,7 +188,7 @@ class QTrainer:
         self.gamma = gamma
         self.model = model
         self.target_model = copy.deepcopy(model)
-        self.optimizer = optim.Adam(model.parameters(), lr=self.lr, weight_decay=1e-2)
+        self.optimizer = optim.Adam(model.parameters(), lr=self.lr, )  # weight_decay=1e-2
         self.criterion = nn.MSELoss()
         self.batch_num = 0
 
@@ -233,8 +234,8 @@ class QTrainer:
             done = (done,)
 
         # Normalize rewards
-        # if len(reward) > 1:
-        #     reward = (reward - reward.mean()) / (reward.std() + 1e-9)  # normalize discounted rewards
+        if len(reward) > 1:
+            reward = (reward - reward.mean()) / (reward.std() + 1e-9)  # normalize discounted rewards
 
         # if self.batch_num % 200 == 0:
         #     # compare_models(self.target_model, self.model)
@@ -243,6 +244,9 @@ class QTrainer:
         #     # compare_models(self.target_model, self.model)
 
         # 1: predicted Q values with current state
+        self.model.eval()
+        self.target_model.eval()
+
         pred = self.model(state)
         target = self.target_model(state)
 
@@ -251,19 +255,22 @@ class QTrainer:
             Q_new = reward[idx]
             if not done[idx]:
                 Q_new = reward[idx] + self.gamma * torch.max(self.target_model(next_state[idx].unsqueeze(0)))
+                # Q_new = reward[idx] + self.gamma * torch.max(self.target_model(next_state[idx].unsqueeze(0)))
                 # yi = r(s,a) + gamma * max_ai' ( Q(si', ai') )
 
-            target = target.clone()
+            target = target.clone().detach()
             target[idx][torch.argmax(action[idx]).item()] = Q_new
 
+        self.model.train()
         self.optimizer.zero_grad()
         loss = self.criterion(target, pred)
         print(f"Loss:{loss.item()}")
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.model.parameters(), .25)
         self.optimizer.step()
-        self.batch_num += 1
+        self.model.eval()
 
+        self.batch_num += 1
         self.update_network_parameters()
 
 

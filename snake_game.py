@@ -21,7 +21,7 @@ FPS = 7
 
 class SnakeGameAI:
 
-    def __init__(self, w=360, h=360, food_number=1, record=False):
+    def __init__(self, w=200, h=200, food_number=1, record=False):
         self.w = w
         self.h = h
         self.frame = np.zeros((self.h, self.w, 3), dtype='uint8')
@@ -30,7 +30,7 @@ class SnakeGameAI:
 
         self.record = record
         if self.record:
-            self.writer = cv2.VideoWriter('snake.mp4', cv2.VideoWriter_fourcc(*'DIVX'), 20, (game.w, game.h))
+            self.writer = cv2.VideoWriter('snake.mp4', cv2.VideoWriter_fourcc(*'DIVX'), 20, (self.w, self.h))
 
     def reset(self):
         # reset
@@ -139,7 +139,11 @@ class SnakeGameAI:
             if self.record:
                 self.writer.write(self.frame)
             if not human:
-                cv2.waitKey(1)
+                k = cv2.waitKey(20)
+                if k == ord('q'):
+                    print(k)
+                    if self.record:
+                        self.writer.release()
 
     def play_step(self, action=None, visuals=False, food_number=1):
         self.food_number = food_number
