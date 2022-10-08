@@ -53,9 +53,9 @@ class ConvNet4(nn.Module):
         # self.fc3 = nn.Linear(64, 16)
         # self.fc4 = nn.Linear(16, 4)
 
-        self.fc1 = nn.Linear(11, 16)
-        self.fc3 = nn.Linear(16, 16)
-        self.fc4 = nn.Linear(16, 4)
+        self.fc1 = nn.Linear(11, 128)
+        self.fc3 = nn.Linear(128, 128)
+        self.fc4 = nn.Linear(128, 4)
 
         # Define proportion or neurons to dropout
         self.dropout = nn.Dropout(0.25)

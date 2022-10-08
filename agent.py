@@ -37,10 +37,10 @@ class Agent:
         # self.V = self.V.to(self.device)
 
         # Params
-        self.LR_policy = 1e-3
+        self.LR_policy = 3e-4
         self.LR_V = 1e-04
         self.gamma = 0.95  # discount rate
-        self.BATCH_SIZE = 128
+        self.BATCH_SIZE = 64
         self.epsilon = 10  # randomness
         self.epsilon_decay = 3e-05
         self.trainer = QTrainer(self.model, lr=self.LR_policy, gamma=self.gamma)
